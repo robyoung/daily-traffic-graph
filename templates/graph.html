@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style type="text/css">
+        .x-axis path, .y-axis path {
+            fill: none;
+        }
+    </style>
+    <script type="text/javascript" src="/static/javascripts/d3.v2.js"></script>
+    <script type="text/javascript" src="/static/javascripts/jquery-1.7.2.js"></script>
+    <script type="text/javascript">
+        var width = 800,
+            height = 500,
+            margin = {top: 20, right: 10, bottom: 50, left: 50};
+
+        function extractDataSet(data, key) {
+            return $.makeArray($(data).map(function(i, d) {
+                return {
+                    x: i,
+                    y: parseInt(d[key]),
+                    date: new Date(Date.parse(d.date))
+                }
+            }));
+        }
+
+        $(function() {
+            d3.csv("/static/data/traffic.csv", function(data) {
+                var stack = d3.layout.stack();
+                data = [
+                    extractDataSet(data, "govuk"),
+                    extractDataSet(data, "directgov"),
+                    extractDataSet(data, "buslink")
+                ];
+                data = stack(data);
+                var count = data[0].length;
+
+                var colWidth = width / count,
+                    barWidth = colWidth - 5;
+                console.log(count);
+                var maxY = d3.max(data, function(d) { return d3.max(d, function(d) { return d.y0 + d.y; })}),
+                    maxZ = d3.max(data, function(d) { return d3.max(d, function(d) { return d.y; })}),
+                    x  = function(d) { return d.x * colWidth },
+                    y0 = function(d) { return height - d.y0 * height / maxY },
+                    y1 = function(d) { return height - (d.y + d.y0) * height / maxY;},
+                    y2 = function(d) { return d.y * height / maxZ},
+                    xExtent = [data[0][0].date, data[0][data[0].length-1].date],
+                    yExtent = [0, maxY],
+                    xScale = d3.time.scale().domain(xExtent).range([0,width]),
+                    yScale = d3.scale.linear().domain(yExtent).range([height, 0]),
+                    xAxis = d3.svg.axis()
+                            .scale(xScale)
+                            .tickFormat(d3.time.format("%d")),
+                    yAxis = d3.svg.axis()
+                            .scale(yScale)
+                            .orient("left")
+                            .tickFormat(function(d) { return d });
+
+                var graph = d3.select("#graph")
+                        .append("svg")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom);
+
+                graph.append("g")
+                        .attr("class", "x-axis")
+                        .attr("transform", "translate(50, " + height +")")
+                        .call(xAxis);
+
+                graph.append("g")
+                        .attr("class", "y-axis")
+                        .attr("transform", "translate(50, 0)")
+                        .call(yAxis);
+
+                var vis = graph.append("g")
+                        .attr("class", "vis")
+                        .attr("transform", "translate(50,0)");
+
+                var layers = vis.selectAll("g.layer")
+                        .data(data)
+                    .enter().append("g")
+                        .style("fill", function(d, i) { return ["#999", "#909", "#990"][i]})
+                        .attr("class", "layer");
+
+                var bars = layers.selectAll("g.bar")
+                        .data(function(d) { return d; })
+                    .enter().append("g")
+                        .attr("class", "bar")
+                        .attr("transform", function(d) { return "translate(" + x(d) + ",0)"; });
+
+                bars.append("rect")
+                        .attr("width", barWidth)
+                        .attr("x", 0)
+                        .attr("y", y1)
+                        .attr("height", function(d) { return y0(d) - y1(d); });
+
+            });
+        });
+    </script>
+</head>
+<body>
+<div id="graph"></div>
+</body>
+</html>
